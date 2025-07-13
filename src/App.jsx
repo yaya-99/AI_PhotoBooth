@@ -1,15 +1,46 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import Navigation from './components/Navigation';
+import ProtectedRoute from './components/ProtectedRoute';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+
+// Placeholder components for now
+const Capture = () => <div className="container mx-auto p-4">Capture Page (Coming Soon)</div>;
+const Gallery = () => <div className="container mx-auto p-4">Gallery Page (Coming Soon)</div>;
+const Admin = () => <div className="container mx-auto p-4">Admin Dashboard (Coming Soon)</div>;
+
 function App() {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-center text-primary-500">
-          AI PhotoBooth
-        </h1>
-        <p className="text-center mt-4 text-gray-600">
-          Coming soon...
-        </p>
-      </div>
-    </div>
+    <Router>
+      <AuthProvider>
+        <div className="min-h-screen bg-gray-50">
+          <Navigation />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/capture" element={
+              <ProtectedRoute>
+                <Capture />
+              </ProtectedRoute>
+            } />
+            <Route path="/gallery" element={
+              <ProtectedRoute>
+                <Gallery />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute adminOnly={true}>
+                <Admin />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </div>
+      </AuthProvider>
+    </Router>
   );
 }
 
