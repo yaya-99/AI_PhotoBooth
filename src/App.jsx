@@ -6,9 +6,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Capture from './pages/Capture';
 
 // Placeholder components for now
-const Capture = () => <div className="container mx-auto p-4">Capture Page (Coming Soon)</div>;
 const Gallery = () => <div className="container mx-auto p-4">Gallery Page (Coming Soon)</div>;
 const Admin = () => <div className="container mx-auto p-4">Admin Dashboard (Coming Soon)</div>;
 
