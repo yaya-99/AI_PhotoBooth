@@ -85,3 +85,45 @@
   50% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* Animation for flash effect */
+@keyframes flash {
+  0% { opacity: 0; }
+  50% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.animate-flash {
+  animation: flash 0.3s ease-out;
+}
+
+/* Cute photobooth styling */
+.photobooth-frame {
+  background: linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 100%);
+  padding: 20px;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.photobooth-header {
+  background: #fff;
+  padding: 10px 20px;
+  border-radius: 30px;
+  display: inline-block;
+  font-family: 'Comic Sans MS', cursive;
+  font-size: 24px;
+  color: #ff6b6b;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  transform: rotate(-2deg);
+}
+
+.photo-slot {
+  background: #fff;
+  border: 3px dashed #ddd;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  font-size: 14px;
+}
