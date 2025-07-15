@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Share2, Trash2, Calendar, Layout } from 'lucide-react';
-import { photoStripStorage } from '../utils/photoStripStorage';
+import storageManager from '../utils/localStorage';
+import { toast } from 'react-hot-toast';
 
 const PhotoStripGallery = ({ userId }) => {
   const [strips, setStrips] = useState([]);
@@ -14,7 +15,7 @@ const PhotoStripGallery = ({ userId }) => {
   const loadStrips = async () => {
     setLoading(true);
     try {
-      let allStrips = await photoStripStorage.getPhotoStrips(userId);
+      let allStrips = storageManager.getPhotoStrips();
       
       // Apply filters
       if (filter !== 'all') {
@@ -22,43 +23,63 @@ const PhotoStripGallery = ({ userId }) => {
       }
       
       // Sort by newest first
-      allStrips.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      allStrips.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       
       setStrips(allStrips);
     } catch (error) {
       console.error('Error loading strips:', error);
+      toast.error('Failed to load photo strips');
     } finally {
       setLoading(false);
     }
   };
 
   const downloadStrip = (strip) => {
-    const link = document.createElement('a');
-    link.href = strip.stripDataUrl;
-    link.download = `photobooth-strip-${strip.id}.png`;
-    link.click();
+    try {
+      const link = document.createElement('a');
+      link.href = strip.stripImage;
+      link.download = `photobooth-strip-${strip.id}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Photo strip downloaded! 📸');
+    } catch (error) {
+      console.error('Error downloading strip:', error);
+      toast.error('Failed to download photo strip');
+    }
   };
 
   const shareStrip = async (strip) => {
     if (navigator.share) {
       try {
-        const blob = await fetch(strip.stripDataUrl).then(r => r.blob());
-        const file = new File([blob], 'photo-strip.png', { type: 'image/png' });
+        const blob = await fetch(strip.stripImage).then(r => r.blob());
+        const file = new File([blob], 'photo-strip.jpg', { type: 'image/jpeg' });
         
         await navigator.share({
           title: 'Check out my photo strip!',
           files: [file]
         });
+        toast.success('Photo strip shared! 📤');
       } catch (error) {
         console.error('Error sharing:', error);
+        toast.error('Failed to share photo strip');
       }
+    } else {
+      // Fallback - copy to clipboard or show message
+      toast.info('Sharing not supported on this device');
     }
   };
 
   const deleteStrip = async (id) => {
     if (window.confirm('Are you sure you want to delete this photo strip?')) {
-      await photoStripStorage.deletePhotoStrip(id);
-      loadStrips();
+      try {
+        await storageManager.deletePhotoStrip(id);
+        toast.success('Photo strip deleted');
+        loadStrips();
+      } catch (error) {
+        console.error('Error deleting strip:', error);
+        toast.error('Failed to delete photo strip');
+      }
     }
   };
 
@@ -99,7 +120,7 @@ const PhotoStripGallery = ({ userId }) => {
             <div key={strip.id} className="bg-white rounded-lg shadow-md overflow-hidden group">
               <div className="aspect-w-3 aspect-h-4 bg-gray-100">
                 <img
-                  src={strip.stripDataUrl}
+                  src={strip.stripImage}
                   alt="Photo strip"
                   className="w-full h-full object-contain"
                 />
@@ -109,7 +130,7 @@ const PhotoStripGallery = ({ userId }) => {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-500 flex items-center">
                     <Calendar className="w-4 h-4 mr-1" />
-                    {new Date(strip.timestamp).toLocaleDateString()}
+                    {new Date(strip.createdAt).toLocaleDateString()}
                   </span>
                   <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
                     {strip.layout}

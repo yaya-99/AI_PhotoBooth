@@ -111,6 +111,7 @@ export const AuthProvider = ({ children }) => {
   // Context value
   const value = {
     user,
+    currentUser: user, // Add currentUser alias for consistency
     userData,
     loading,
     error,
