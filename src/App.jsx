@@ -1,9 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Link } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Navigation from './components/Navigation';
-import Login from './components/Login';
-import Register from './components/Register';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import Photobooth from './pages/Photobooth';
 import PhotoStripGallery from './components/PhotoStripGallery';
 import { Toaster } from 'react-hot-toast';
