@@ -1,8 +1,18 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, RotateCw, Check, X, Download } from 'lucide-react';
-import { PHOTOBOOTH_LAYOUTS, PHOTOBOOTH_THEMES } from '../config/photoboothConfig';
+import { Camera, RotateCw, Check, X, Download, Settings, Sparkles, Timer } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { 
+  PHOTOBOOTH_LAYOUTS, 
+  PHOTOBOOTH_THEMES, 
+  PHOTOBOOTH_SETTINGS,
+  PHOTOBOOTH_MESSAGES,
+  getLayoutById,
+  getThemeById,
+  getRandomMessage
+} from '../config/photoboothConfig';
 import PhotoStripCanvas from './PhotoStripCanvas';
+import storageManager from '../utils/localStorage';
 
 const PhotoboothCapture = () => {
   const webcamRef = useRef(null);
@@ -15,9 +25,22 @@ const PhotoboothCapture = () => {
   const [selectedTheme, setSelectedTheme] = useState('classic');
   const [showPreview, setShowPreview] = useState(false);
   const [photoStrip, setPhotoStrip] = useState(null);
+  const [currentMessage, setCurrentMessage] = useState(getRandomMessage('instructions'));
+  const [isFlashing, setIsFlashing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const layout = PHOTOBOOTH_LAYOUTS[selectedLayout];
-  const theme = PHOTOBOOTH_THEMES[selectedTheme];
+  const layout = getLayoutById(selectedLayout);
+  const theme = getThemeById(selectedTheme);
+
+  // Update message periodically when not capturing
+  useEffect(() => {
+    if (!isCapturing && !showPreview) {
+      const interval = setInterval(() => {
+        setCurrentMessage(getRandomMessage('instructions'));
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isCapturing, showPreview]);
 
   const startPhotoSession = useCallback(() => {
     setCapturedPhotos([]);
@@ -75,6 +98,7 @@ const PhotoboothCapture = () => {
   const generatePhotoStrip = useCallback(async () => {
     // This will be handled by PhotoStripCanvas component
     // which will create the final strip with the selected layout and theme
+    toast.success(getRandomMessage('completion'));
   }, [capturedPhotos, layout, theme]);
 
   const retakePhotos = () => {
@@ -82,6 +106,59 @@ const PhotoboothCapture = () => {
     setCurrentPhotoIndex(0);
     setShowPreview(false);
     setPhotoStrip(null);
+    setCurrentMessage(getRandomMessage('instructions'));
+  };
+
+  const savePhotoStrip = async () => {
+    if (!photoStrip || !capturedPhotos.length) {
+      toast.error('No photo strip to save!');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const stripData = {
+        photos: capturedPhotos,
+        layout: selectedLayout,
+        theme: selectedTheme,
+        layoutConfig: layout,
+        themeConfig: theme,
+        stripImage: photoStrip
+      };
+
+      const stripId = await storageManager.savePhotoStrip(stripData);
+      toast.success('Photo strip saved successfully! 🎉');
+      
+      // Reset after successful save
+      setTimeout(() => {
+        retakePhotos();
+      }, 2000);
+    } catch (error) {
+      console.error('Error saving photo strip:', error);
+      toast.error('Failed to save photo strip. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const downloadPhotoStrip = () => {
+    if (!photoStrip) {
+      toast.error('No photo strip to download!');
+      return;
+    }
+
+    try {
+      const link = document.createElement('a');
+      link.href = photoStrip;
+      link.download = `photobooth-strip-${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Photo strip downloaded! 📸');
+    } catch (error) {
+      console.error('Error downloading photo strip:', error);
+      toast.error('Failed to download photo strip. Please try again.');
+    }
   };
 
   return (
@@ -150,7 +227,34 @@ const PhotoboothCapture = () => {
 
         {/* Camera View */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          {/* Cute Message Display */}
+          {!showPreview && (
+            <div className="bg-gradient-to-r from-pink-500 to-purple-500 text-white p-4 rounded-t-lg shadow-sm">
+              <div className="text-center">
+                <div className="text-lg font-medium">
+                  {isCapturing ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <Sparkles className="w-5 h-5 animate-pulse" />
+                      <span>Creating your photo strip...</span>
+                      <Sparkles className="w-5 h-5 animate-pulse" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center space-x-2">
+                      <Camera className="w-5 h-5" />
+                      <span>{currentMessage}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm opacity-90 mt-1">
+                  {layout.name} • {theme.name} Theme • {layout.photos} photos
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div className={`bg-white shadow-md overflow-hidden ${
+            showPreview ? 'rounded-lg' : 'rounded-b-lg'
+          }`}>
             {!showPreview ? (
               <div className="relative">
                 <Webcam
@@ -223,14 +327,28 @@ const PhotoboothCapture = () => {
                     Retake
                   </button>
                   <button
-                    onClick={() => {/* Save logic */}}
-                    className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center"
+                    onClick={savePhotoStrip}
+                    disabled={isSaving}
+                    className={`px-6 py-3 text-white rounded-lg flex items-center transition-all ${
+                      isSaving 
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
                   >
-                    <Check className="w-5 h-5 mr-2" />
-                    Save
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5 mr-2" />
+                        Save
+                      </>
+                    )}
                   </button>
                   <button
-                    onClick={() => {/* Download logic */}}
+                    onClick={downloadPhotoStrip}
                     className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center"
                   >
                     <Download className="w-5 h-5 mr-2" />
