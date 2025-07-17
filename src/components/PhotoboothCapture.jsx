@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, RotateCw, Check, X, Download, Settings, Sparkles, Timer, Palette, Zap, Heart, Star } from 'lucide-react';
+import { Camera, RotateCw, Check, X, Download, Settings, Sparkles, Timer, Palette, Zap, Heart, Star, Wand2, Brain } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { 
   PHOTOBOOTH_LAYOUTS, 
@@ -12,7 +12,9 @@ import {
   getRandomMessage
 } from '../config/photoboothConfig';
 import PhotoStripCanvas from './PhotoStripCanvas';
+import BackgroundSelector from './BackgroundSelector';
 import storageManager from '../utils/localStorage';
+import aiUtils from '../utils/aiUtils';
 
 // Enhanced UI Themes
 const UI_THEMES = {
@@ -79,6 +81,17 @@ const PhotoboothCapture = () => {
   const [isFlashing, setIsFlashing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
+  const [selectedBackground, setSelectedBackground] = useState('none');
+  const [isAIProcessing, setIsAIProcessing] = useState(false);
+  const [aiInitialized, setAiInitialized] = useState(false);
+  const [showAIControls, setShowAIControls] = useState(false);
+  const [aiOverlayOpacity, setAiOverlayOpacity] = useState(0.7);
+  const [showAIOverlay, setShowAIOverlay] = useState(false);
+  const [aiEffectCategory, setAiEffectCategory] = useState('backgrounds');
+  const [selectedAIEffect, setSelectedAIEffect] = useState('none');
+  const [aiFilterIntensity, setAiFilterIntensity] = useState(0.5);
+  const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
+  const [showAIMagicPanel, setShowAIMagicPanel] = useState(false);
 
   const layout = getLayoutById(selectedLayout);
   const theme = getThemeById(selectedTheme);
@@ -109,6 +122,22 @@ const PhotoboothCapture = () => {
     }
   }, [showParticles]);
 
+  // Initialize AI when component mounts
+  useEffect(() => {
+    const initAI = async () => {
+      try {
+        setIsAIProcessing(true);
+        await aiUtils.initialize();
+        setAiInitialized(true);
+      } catch (error) {
+        console.error('AI initialization failed:', error);
+      } finally {
+        setIsAIProcessing(false);
+      }
+    };
+    initAI();
+  }, []);
+
   const flashEffect = () => {
     const flash = document.createElement('div');
     flash.className = 'fixed inset-0 bg-white z-50 animate-flash';
@@ -122,19 +151,36 @@ const PhotoboothCapture = () => {
     toast.success(getRandomMessage('completion'));
   }, [capturedPhotos, layout, theme]);
 
-  const captureNextPhoto = useCallback(() => {
+  const captureNextPhoto = useCallback(async () => {
     let count = 3;
     setCountdown(count);
     
-    const countdownInterval = setInterval(() => {
+    const countdownInterval = setInterval(async () => {
       count--;
       setCountdown(count);
       
       if (count === 0) {
         clearInterval(countdownInterval);
         
-        const imageSrc = webcamRef.current.getScreenshot();
+        let imageSrc = webcamRef.current.getScreenshot();
         console.log('Photo captured:', imageSrc ? 'Success' : 'Failed');
+        
+        // Apply AI processing if enabled
+        if (aiInitialized && selectedAIEffect !== 'none') {
+          try {
+            setIsAIProcessing(true);
+            if (selectedAIEffect === 'blur' || selectedAIEffect === 'remove') {
+              imageSrc = await aiUtils.processImage(imageSrc, { type: selectedAIEffect });
+            } else if (selectedAIEffect.startsWith('enhance_')) {
+              const filterType = selectedAIEffect.replace('enhance_', '');
+              imageSrc = await aiUtils.enhancePhoto(imageSrc, filterType, aiFilterIntensity);
+            }
+          } catch (error) {
+            console.error('AI processing failed:', error);
+          } finally {
+            setIsAIProcessing(false);
+          }
+        }
         
         setCapturedPhotos(prev => {
           const newPhotos = [...prev, imageSrc];
@@ -146,7 +192,7 @@ const PhotoboothCapture = () => {
         setCountdown(null);
       }
     }, 1000);
-  }, [layout.photos]);
+  }, [layout.photos, aiInitialized, selectedAIEffect, aiFilterIntensity]);
 
   const startPhotoSession = useCallback(() => {
     setCapturedPhotos([]);
@@ -349,6 +395,203 @@ const PhotoboothCapture = () => {
                 </div>
               </div>
 
+              {/* AI Magic Panel Toggle */}
+              <button
+                onClick={() => setShowAIMagicPanel(!showAIMagicPanel)}
+                className={`w-full p-2 sm:p-4 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md ${
+                  showAIMagicPanel 
+                    ? `bg-gradient-to-r ${uiTheme.buttonGradient} text-white` 
+                    : 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 hover:from-purple-200 hover:to-pink-200'
+                }`}
+              >
+                <Brain className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3" />
+                <span className="font-semibold text-sm sm:text-base">AI Magic ✨</span>
+              </button>
+
+              {/* AI Magic Panel */}
+              {showAIMagicPanel && (
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-lg border border-purple-200 space-y-4 animate-fade-in">
+                  {/* AI Overlay Controls */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-sm font-semibold text-gray-800 flex items-center">
+                        <Sparkles className="w-4 h-4 mr-2 text-purple-600" />
+                        AI Overlay
+                      </label>
+                      <button
+                        onClick={() => setShowAIOverlay(!showAIOverlay)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                          showAIOverlay 
+                            ? 'bg-purple-500 text-white' 
+                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                        }`}
+                      >
+                        {showAIOverlay ? 'ON' : 'OFF'}
+                      </button>
+                    </div>
+                    
+                    {showAIOverlay && (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-600">Opacity:</span>
+                          <input
+                            type="range"
+                            min="0.1"
+                            max="1"
+                            step="0.1"
+                            value={aiOverlayOpacity}
+                            onChange={(e) => setAiOverlayOpacity(parseFloat(e.target.value))}
+                            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          />
+                          <span className="text-xs text-gray-600 w-8">{Math.round(aiOverlayOpacity * 100)}%</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* AI Effect Categories */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-800 mb-2">Effect Category</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { key: 'backgrounds', label: 'Backgrounds', icon: '🖼️' },
+                        { key: 'effects', label: 'Effects', icon: '✨' },
+                        { key: 'filters', label: 'Filters', icon: '🎨' }
+                      ].map(category => (
+                        <button
+                          key={category.key}
+                          onClick={() => setAiEffectCategory(category.key)}
+                          className={`p-2 rounded-lg text-xs font-medium transition-all ${
+                            aiEffectCategory === category.key
+                              ? 'bg-purple-500 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          <div>{category.icon}</div>
+                          <div className="mt-1">{category.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* AI Effect Options */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-800 mb-2">AI Effects</label>
+                    <div className="space-y-2">
+                      {aiEffectCategory === 'backgrounds' && [
+                        { key: 'none', label: 'None', preview: '🚫' },
+                        { key: 'blur', label: 'Blur Background', preview: '🌫️' },
+                        { key: 'remove', label: 'Remove Background', preview: '🫥' }
+                      ].map(effect => (
+                        <button
+                          key={effect.key}
+                          onClick={() => setSelectedAIEffect(effect.key)}
+                          className={`w-full p-2 rounded-lg text-left text-xs transition-all flex items-center space-x-2 ${
+                            selectedAIEffect === effect.key
+                              ? 'bg-purple-500 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          <span className="text-base">{effect.preview}</span>
+                          <span>{effect.label}</span>
+                        </button>
+                      ))}
+                      
+                      {aiEffectCategory === 'effects' && [
+                        { key: 'none', label: 'None', preview: '🚫' },
+                        { key: 'enhance_brightness', label: 'Brighten', preview: '☀️' },
+                        { key: 'enhance_contrast', label: 'Contrast', preview: '⚫' },
+                        { key: 'enhance_smooth', label: 'Smooth', preview: '✨' }
+                      ].map(effect => (
+                        <button
+                          key={effect.key}
+                          onClick={() => setSelectedAIEffect(effect.key)}
+                          className={`w-full p-2 rounded-lg text-left text-xs transition-all flex items-center space-x-2 ${
+                            selectedAIEffect === effect.key
+                              ? 'bg-purple-500 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          <span className="text-base">{effect.preview}</span>
+                          <span>{effect.label}</span>
+                        </button>
+                      ))}
+                      
+                      {aiEffectCategory === 'filters' && [
+                        { key: 'none', label: 'None', preview: '🚫' },
+                        { key: 'enhance_vintage', label: 'Vintage', preview: '📸' },
+                        { key: 'enhance_sepia', label: 'Sepia', preview: '🟫' },
+                        { key: 'enhance_cool', label: 'Cool Tone', preview: '🧊' }
+                      ].map(effect => (
+                        <button
+                          key={effect.key}
+                          onClick={() => setSelectedAIEffect(effect.key)}
+                          className={`w-full p-2 rounded-lg text-left text-xs transition-all flex items-center space-x-2 ${
+                            selectedAIEffect === effect.key
+                              ? 'bg-purple-500 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          <span className="text-base">{effect.preview}</span>
+                          <span>{effect.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Intensity Control */}
+                  {selectedAIEffect !== 'none' && selectedAIEffect.startsWith('enhance_') && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">Effect Intensity</label>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-600">Light</span>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="1"
+                          step="0.1"
+                          value={aiFilterIntensity}
+                          onChange={(e) => setAiFilterIntensity(parseFloat(e.target.value))}
+                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-600">Strong</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Preview Toggle */}
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-gray-800">Live Preview</label>
+                    <button
+                      onClick={() => setLivePreviewEnabled(!livePreviewEnabled)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                        livePreviewEnabled 
+                          ? 'bg-purple-500 text-white' 
+                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      }`}
+                    >
+                      {livePreviewEnabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                  
+                  {/* AI Status */}
+                  <div className="text-center pt-2 border-t border-gray-200">
+                    <div className={`text-xs font-medium ${
+                      aiInitialized ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      {isAIProcessing ? (
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="w-3 h-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Processing...</span>
+                        </div>
+                      ) : (
+                        <span>{aiInitialized ? '✅ AI Ready' : '⏳ AI Loading...'}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Camera Switch */}
               <button
                 onClick={() => setFacingMode(facingMode === 'user' ? 'environment' : 'user')}
@@ -399,6 +642,18 @@ const PhotoboothCapture = () => {
                     videoConstraints={{ facingMode }}
                     className="w-full rounded-b-2xl sm:rounded-b-3xl"
                   />
+
+                  {/* AI Overlay */}
+                  {showAIOverlay && (
+                    <div 
+                      className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm rounded-b-2xl sm:rounded-b-3xl pointer-events-none"
+                      style={{ opacity: aiOverlayOpacity }}
+                    >
+                      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1 text-xs font-medium text-purple-800">
+                        AI Active ✨
+                      </div>
+                    </div>
+                  )}
 
                   {/* Overlay UI */}
                   <div className="absolute inset-0 pointer-events-none">
